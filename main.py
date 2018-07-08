@@ -12,35 +12,45 @@ WINDOW_SIZE = (800, 600)
 
 BACKGROUND = (255, 255, 255)
 COLORS = [(255, 0, 0), (0, 0, 255)]
-THRESHOLD = 320
+THRESHOLD = 350
 
 AMOUNT = 1000
+BLOCK_SIZE = 20
 IMAGE = 8
 SPEED = [1, 30]
 TIME = 100
 
 def convert(image):
     image_size = image.get_size()
-    color = [False for i in range(len(COLORS))]
+    rects = []
 
-    for i in range(image_size[0]):
-        for j in range(image_size[1]):
-            pixel = image.get_at((i, j))
+    for i in range(0, image_size[0], BLOCK_SIZE):
+        for j in range(0, image_size[1], BLOCK_SIZE):
+            count = [0 for k in range(len(COLORS))]
+            for k in range(i, i + BLOCK_SIZE):
+                for l in range(j, j + BLOCK_SIZE):
+                    pixel = image.get_at((k, l))
+                    for m in range(len(COLORS)):
+                        if sum([abs(COLORS[m][n] - pixel[n]) for n in range(3)]) < THRESHOLD:
+                            count[m] += 1
+                            break
+
+            used = False
             for k in range(len(COLORS)):
-                if sum([abs(COLORS[k][l] - pixel[l]) for l in range(3)]) < THRESHOLD:
-                    image.set_at((i, j), COLORS[k])
-                    color[k] = True
-                    break
-            if image.get_at((i, j)) == pixel:
-                image.set_at((i, j), BACKGROUND)
+                if count[k] > BLOCK_SIZE ** 2 * 0.8:
+                    used = True
+                    image.fill(COLORS[k], pygame.Rect(i, j, BLOCK_SIZE, BLOCK_SIZE))
+                    rects.append(pygame.Rect(i, j, BLOCK_SIZE, BLOCK_SIZE))
+            if not used:
+                    image.fill(BACKGROUND, pygame.Rect(i, j, BLOCK_SIZE, BLOCK_SIZE))
 
-    return sum(color)
+    return rects
 
 class Tux(pygame.sprite.Sprite):
-    def __init__(self, position, window_size, field):
+    def __init__(self, position, window_size, rects):
         pygame.sprite.Sprite.__init__(self)
         self.window_size = window_size
-        self.field = field
+        self.rects = rects
 
         self.left_image = []
         self.right_image = []
@@ -234,8 +244,9 @@ class Game(threading.Thread):
             elif self.mode == 3: # Game
                 if not self.field:
                     self.field = self.capture(self.transform)
-                    color = convert(self.field)
-                    self.tux = Tux((0, 0), self.window_size, self.field)
+                    pygame.display.update()
+                    rects = convert(self.field)
+                    self.tux = Tux((0, 0), self.window_size, rects)
                 self.screen.blit(self.field, tuple([(self.window_size[i] - CAMERA_SIZE[i]) / 2 for i in range(2)]))
                 self.tux.update()
                 self.tux.draw(self.screen)
